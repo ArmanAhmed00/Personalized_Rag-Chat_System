@@ -19,12 +19,15 @@ from sidelamp.errors import NotFound
 from sidelamp.ingest.chunker import ChunkSettings
 from sidelamp.ingest.embed import Embedder, make_embedder
 from sidelamp.ingest.extractors import ExtractOptions
-from sidelamp.ingest.pipeline import PipelineContext
+from sidelamp.ingest.pipeline import PipelineContext, read_passages, read_vectors
 from sidelamp.ingest.queue import IngestQueue
-from sidelamp.library.documents import Document, DocumentIndex
+from sidelamp.library.documents import Document, DocumentIndex, Progress, Status
 from sidelamp.library.trash import move_to_trash
 from sidelamp.library.watcher import LibraryWatcher
 from sidelamp.paths import DataPaths, LibraryPaths
+from sidelamp.search.index import SearchIndex
+from sidelamp.search.rerank import Reranker, make_reranker
+from sidelamp.search.service import SearchOptions, SearchService
 from sidelamp.store.files import KeyedLocks, recover_dirs, remove_tree
 from sidelamp.store.lock import HEARTBEAT_SECONDS, InstanceLock
 from sidelamp.store.migrations import MigrationReport, ensure_format
@@ -69,6 +72,13 @@ class AppState:
         self.embedder: Embedder | None = None
         self.queue: IngestQueue | None = None
         self.watcher: LibraryWatcher | None = None
+        self.index = SearchIndex()
+        self.search = SearchService(
+            self.index, lambda: self.embedder, self.reranker, self.search_options
+        )
+        self._reranker: tuple[tuple[str, str], Reranker | None] | None = None
+        # Observability hooks (set in Phase 5): called with numbers only.
+        self.on_search: Callable[[Any], None] | None = None
         self.opened = False
         self._tasks: list[asyncio.Task[None]] = []
         self._closers: list[Callable[[], Any]] = []
@@ -89,6 +99,7 @@ class AppState:
             self.documents = DocumentIndex(self.lib.documents_file)
             self.documents.requeue_unsettled()
             self._attach_ingestion(self.documents)
+            self._attach_search()
         except BaseException:
             self.lock.release()
             raise
@@ -112,6 +123,66 @@ class AppState:
             on_change=lambda report: queue.wake(),
             emit=self.events.emit,
         )
+
+    def _attach_search(self) -> None:
+        self.events.on("document_ready", self._index_document)
+        self.events.on("document_removed", self._unindex_document)
+        self.events.on("library_rebuilt", lambda **_: self.reset_index())
+        self.load_index()
+
+    def reset_index(self) -> None:
+        self.index.clear()
+        if self.embedder is not None:
+            self.index.model_id = self.embedder.model_id
+
+    def load_index(self) -> int:
+        """Rebuild the in-memory index from the stored passages and vectors."""
+        self.reset_index()
+        loaded = 0
+        model = self.embedder.model_id if self.embedder else None
+        for doc in self.docs.all():
+            if doc.status != Status.ready or doc.embed_model != model:
+                continue
+            folder = self.lib.doc_dir(doc.id)
+            passages = read_passages(folder)
+            vectors = read_vectors(folder)
+            if vectors is None or len(vectors) != len(passages):
+                self.docs.update(
+                    doc.id,
+                    status=Status.queued,
+                    lazy=True,
+                    progress=Progress(message="Search data was missing: reading again"),
+                )
+                continue
+            if self.index.add(doc.id, passages, vectors, model):
+                loaded += 1
+        self.docs.flush()
+        return loaded
+
+    def _index_document(
+        self, doc: Document, passages: list[dict[str, Any]], vectors: Any, **_: Any
+    ) -> None:
+        self.index.add(doc.id, passages, vectors, doc.embed_model)
+
+    def _unindex_document(self, doc: Document, **_: Any) -> None:
+        self.index.remove(doc.id)
+
+    def search_options(self) -> SearchOptions:
+        s = self.settings
+        return SearchOptions(
+            vector_k=s.vector_k,
+            keyword_k=s.keyword_k,
+            rerank_k=s.rerank_k,
+            rrf_k=s.rrf_k,
+            vector_weight=s.vector_weight,
+            keyword_weight=s.keyword_weight,
+        )
+
+    def reranker(self) -> Reranker | None:
+        key = (self.settings.reranker, self.settings.rerank_model)
+        if self._reranker is None or self._reranker[0] != key:
+            self._reranker = (key, make_reranker(key[0], key[1], self.data.models_dir))
+        return self._reranker[1]
 
     def pipeline_context(self) -> PipelineContext:
         s = self.settings
