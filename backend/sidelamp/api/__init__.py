@@ -6,6 +6,6 @@ from fastapi import APIRouter
 
 
 def routers() -> list[APIRouter]:
-    from sidelamp.api import documents, system
+    from sidelamp.api import documents, search, system
 
-    return [system.router, documents.router]
+    return [system.router, documents.router, search.router]
