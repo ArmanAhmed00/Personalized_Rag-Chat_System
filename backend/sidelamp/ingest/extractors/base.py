@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import importlib
 import pkgutil
+import threading
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -82,6 +83,7 @@ class Extractor(Protocol):
 _REGISTRY: dict[str, Extractor] = {}
 _BY_EXTENSION: dict[str, Extractor] = {}
 _LOADED = False
+_LOAD_LOCK = threading.Lock()
 
 
 def register(extractor: Extractor) -> None:
@@ -91,18 +93,23 @@ def register(extractor: Extractor) -> None:
 
 
 def _load() -> None:
+    # Workers call this from several threads at once: the flag is set only after every module is
+    # registered, under a lock, so no thread ever sees a half-filled registry.
     global _LOADED
     if _LOADED:
         return
-    _LOADED = True
-    package = importlib.import_module("sidelamp.ingest.extractors")
-    for info in pkgutil.iter_modules(package.__path__):
-        if info.name == "base":
-            continue
-        module = importlib.import_module(f"sidelamp.ingest.extractors.{info.name}")
-        extractor = getattr(module, "EXTRACTOR", None)
-        if extractor is not None:
-            register(extractor)
+    with _LOAD_LOCK:
+        if _LOADED:
+            return
+        package = importlib.import_module("sidelamp.ingest.extractors")
+        for info in pkgutil.iter_modules(package.__path__):
+            if info.name == "base":
+                continue
+            module = importlib.import_module(f"sidelamp.ingest.extractors.{info.name}")
+            extractor = getattr(module, "EXTRACTOR", None)
+            if extractor is not None:
+                register(extractor)
+        _LOADED = True
 
 
 def all_extractors() -> list[Extractor]:

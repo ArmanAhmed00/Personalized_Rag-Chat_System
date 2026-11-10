@@ -14,16 +14,19 @@ from collections import defaultdict
 from collections.abc import Callable, Coroutine
 from typing import Any
 
+from sidelamp.chat.chats import ChatMessage, ChatStore
+from sidelamp.chat.preferences import PreferenceStore
 from sidelamp.config import Settings
 from sidelamp.errors import NotFound
 from sidelamp.ingest.chunker import ChunkSettings
-from sidelamp.ingest.embed import Embedder, make_embedder
+from sidelamp.ingest.embed import Embedder, embedder_id, make_embedder
 from sidelamp.ingest.extractors import ExtractOptions
 from sidelamp.ingest.pipeline import PipelineContext, read_passages, read_vectors
 from sidelamp.ingest.queue import IngestQueue
 from sidelamp.library.documents import Document, DocumentIndex, Progress, Status
 from sidelamp.library.trash import move_to_trash
 from sidelamp.library.watcher import LibraryWatcher
+from sidelamp.llm.base import LLM, llm_key, make_llm
 from sidelamp.paths import DataPaths, LibraryPaths
 from sidelamp.search.index import SearchIndex
 from sidelamp.search.rerank import Reranker, make_reranker
@@ -77,8 +80,16 @@ class AppState:
             self.index, lambda: self.embedder, self.reranker, self.search_options
         )
         self._reranker: tuple[tuple[str, str], Reranker | None] | None = None
-        # Observability hooks (set in Phase 5): called with numbers only.
+        self._chats: ChatStore | None = None
+        self._preferences: PreferenceStore | None = None
+        self._llm: tuple[tuple[Any, ...], LLM] | None = None
+        self.llm_override: LLM | None = None  # tests and demos: use this model instead
+        self.answering: set[str] = set()  # chats with an answer in progress
+        # Answers numeric questions about a selected CSV with computed results (Phase 4).
+        self.data_hook: Callable[..., Any] | None = None
+        # Observability hooks: called with numbers only.
         self.on_search: Callable[[Any], None] | None = None
+        self.on_answer: Callable[[ChatMessage], None] | None = None
         self.opened = False
         self._tasks: list[asyncio.Task[None]] = []
         self._closers: list[Callable[[], Any]] = []
@@ -98,8 +109,11 @@ class AppState:
             recover_dirs(self.lib.docs_dir, self.lib.tmp_dir)
             self.documents = DocumentIndex(self.lib.documents_file)
             self.documents.requeue_unsettled()
+            self._chats = ChatStore(self.lib.chats_dir)
+            self._preferences = PreferenceStore(self.lib.preferences_file)
             self._attach_ingestion(self.documents)
             self._attach_search()
+            self._attach_chat()
         except BaseException:
             self.lock.release()
             raise
@@ -129,6 +143,40 @@ class AppState:
         self.events.on("document_removed", self._unindex_document)
         self.events.on("library_rebuilt", lambda **_: self.reset_index())
         self.load_index()
+
+    def _attach_chat(self) -> None:
+        chats = self.chats
+
+        def forget(doc: Document, **_: Any) -> None:
+            chats.forget_document(doc.id)
+
+        self.events.on("document_removed", forget)
+
+    def llm(self) -> LLM:
+        """The model provider for the current settings (rebuilt when they change)."""
+        if self.llm_override is not None:
+            return self.llm_override
+        key = llm_key(self.settings)
+        if self._llm is None or self._llm[0] != key:
+            self._llm = (key, make_llm(self.settings))
+        return self._llm[1]
+
+    def apply_settings(self, new: Settings) -> list[str]:
+        """Switch to new settings while running. Returns plain-language notes about what follows
+        (for example, documents being read again for a new search model)."""
+        old = self.settings
+        self.settings = new
+        notes: list[str] = []
+        if embedder_id(old) != embedder_id(new):
+            self.embedder = make_embedder(new)
+            self.load_index()
+            notes.append(
+                "The search model changed, so every document is being prepared again. Search "
+                "fills back in as each one finishes."
+            )
+        if self.queue is not None and self.queue.reconcile() and not notes:
+            notes.append("Reading settings changed, so affected documents are being read again.")
+        return notes
 
     def reset_index(self) -> None:
         self.index.clear()
@@ -256,6 +304,18 @@ class AppState:
         if self.documents is None:
             raise RuntimeError("The library isn't open")
         return self.documents
+
+    @property
+    def chats(self) -> ChatStore:
+        if self._chats is None:
+            raise RuntimeError("The library isn't open")
+        return self._chats
+
+    @property
+    def preferences(self) -> PreferenceStore:
+        if self._preferences is None:
+            raise RuntimeError("The library isn't open")
+        return self._preferences
 
     def require_document(self, doc_id: str) -> Document:
         doc = self.docs.get(doc_id)
