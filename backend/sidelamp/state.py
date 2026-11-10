@@ -16,8 +16,14 @@ from typing import Any
 
 from sidelamp.config import Settings
 from sidelamp.errors import NotFound
+from sidelamp.ingest.chunker import ChunkSettings
+from sidelamp.ingest.embed import Embedder, make_embedder
+from sidelamp.ingest.extractors import ExtractOptions
+from sidelamp.ingest.pipeline import PipelineContext
+from sidelamp.ingest.queue import IngestQueue
 from sidelamp.library.documents import Document, DocumentIndex
 from sidelamp.library.trash import move_to_trash
+from sidelamp.library.watcher import LibraryWatcher
 from sidelamp.paths import DataPaths, LibraryPaths
 from sidelamp.store.files import KeyedLocks, recover_dirs, remove_tree
 from sidelamp.store.lock import HEARTBEAT_SECONDS, InstanceLock
@@ -32,7 +38,8 @@ Handler = Callable[..., None]
 class Events:
     """A tiny in-process event hub, so modules react to each other without importing each other.
 
-    Events: ``document_added``, ``document_changed``, ``document_removed``, ``document_ready``.
+    Events: ``document_added``, ``document_changed``, ``document_moved``, ``document_removed``,
+    ``document_ready`` and ``library_rebuilt``.
     """
 
     def __init__(self) -> None:
@@ -59,6 +66,9 @@ class AppState:
         self.file_locks = KeyedLocks()
         self.documents: DocumentIndex | None = None
         self.migration: MigrationReport | None = None
+        self.embedder: Embedder | None = None
+        self.queue: IngestQueue | None = None
+        self.watcher: LibraryWatcher | None = None
         self.opened = False
         self._tasks: list[asyncio.Task[None]] = []
         self._closers: list[Callable[[], Any]] = []
@@ -78,14 +88,58 @@ class AppState:
             recover_dirs(self.lib.docs_dir, self.lib.tmp_dir)
             self.documents = DocumentIndex(self.lib.documents_file)
             self.documents.requeue_unsettled()
+            self._attach_ingestion(self.documents)
         except BaseException:
             self.lock.release()
             raise
         self.opened = True
 
-    def start_background(self) -> None:
+    def _attach_ingestion(self, docs: DocumentIndex) -> None:
+        self.embedder = make_embedder(self.settings)
+        self.queue = IngestQueue(
+            docs,
+            self.pipeline_context,
+            workers=lambda: self.settings.workers,
+            retries=lambda: self.settings.retries,
+        )
+        queue = self.queue
+        self.watcher = LibraryWatcher(
+            self.lib.root,
+            docs,
+            depth=lambda: self.settings.watch_depth,
+            interval=lambda: self.settings.watch_interval,
+            forget=self.forget_document,
+            on_change=lambda report: queue.wake(),
+            emit=self.events.emit,
+        )
+
+    def pipeline_context(self) -> PipelineContext:
+        s = self.settings
+        if self.embedder is None:
+            raise RuntimeError("The library isn't open")
+        return PipelineContext(
+            lib=self.lib,
+            docs=self.docs,
+            embedder=self.embedder,
+            chunking=ChunkSettings(
+                target=s.chunk_tokens, overlap=s.chunk_overlap, minimum=s.chunk_min
+            ),
+            options=ExtractOptions(
+                ocr=s.ocr == "auto", csv_rows=s.csv_rows, target_tokens=s.chunk_tokens
+            ),
+            on_ready=self._on_ready,
+        )
+
+    def _on_ready(self, doc: Document, passages: list[dict[str, Any]], vectors: Any) -> None:
+        self.events.emit("document_ready", doc=doc, passages=passages, vectors=vectors)
+
+    def start_background(self, *, watch: bool = True, ingest: bool = True) -> None:
         self.spawn(self._heartbeat_loop(), "heartbeat")
         self.spawn(self._flush_loop(), "flush")
+        if ingest and self.queue is not None:
+            self.spawn(self.queue.run(), "queue")
+        if watch and self.watcher is not None:
+            self.spawn(self.watcher.run(), "watcher")
 
     def spawn(self, coro: Coroutine[Any, Any, None], name: str) -> None:
         self._tasks.append(asyncio.create_task(coro, name=f"sidelamp:{name}"))
@@ -147,6 +201,8 @@ class AppState:
 
     def forget_document(self, doc_id: str) -> Document | None:
         """Remove a document from the index and delete its processed data (not the file)."""
+        if self.queue is not None and self.queue.is_running(doc_id):
+            self.queue.cancel(doc_id)
         doc = self.docs.remove(doc_id)
         remove_tree(self.lib.doc_dir(doc_id))
         if doc is not None:

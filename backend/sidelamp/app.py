@@ -29,9 +29,11 @@ def create_app(
     *,
     state: AppState | None = None,
     background: bool = True,
+    watch: bool = True,
 ) -> FastAPI:
     """Build the app. Pass an already-opened ``state`` (the CLI does) or let the lifespan open
-    one. ``background=False`` skips the watcher, workers and timers (useful in tests)."""
+    one. ``background=False`` skips the workers, watcher and timers; ``watch=False`` skips only
+    the folder watcher (both are useful in tests)."""
     if state is None:
         state = AppState(settings or load_settings())
     app_state = state
@@ -40,7 +42,7 @@ def create_app(
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
         app_state.open()
         if background:
-            app_state.start_background()
+            app_state.start_background(watch=watch)
         try:
             yield
         finally:

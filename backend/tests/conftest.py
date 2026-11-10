@@ -13,6 +13,7 @@ from fastapi.testclient import TestClient
 
 from sidelamp.app import create_app
 from sidelamp.config import Settings, load_settings
+from sidelamp.state import AppState
 
 LOCAL = ("127.0.0.1", 50000)
 BASE_URL = "http://127.0.0.1:8642"
@@ -51,8 +52,10 @@ def make_client(
     client: tuple[str, int] = LOCAL,
     base_url: str = BASE_URL,
     csrf: bool = True,
+    background: bool = False,
+    watch: bool = False,
 ) -> TestClient:
-    app = create_app(settings, background=False)
+    app = create_app(settings, background=background, watch=watch)
     headers = dict(CSRF) if csrf else {}
     return TestClient(app, base_url=base_url, client=client, headers=headers)
 
@@ -61,6 +64,24 @@ def make_client(
 def client(settings: Settings) -> Iterator[TestClient]:
     with make_client(settings) as c:
         yield c
+
+
+@pytest.fixture
+def live_client(settings: Settings) -> Iterator[TestClient]:
+    """A client whose ingestion queue runs (the folder watcher doesn't)."""
+    with make_client(settings, background=True) as c:
+        yield c
+
+
+def app_state(c: TestClient) -> AppState:
+    state: AppState = c.app.state.sidelamp  # type: ignore[attr-defined]
+    return state
+
+
+def wait_ingested(c: TestClient, timeout: float = 30.0) -> None:
+    state = app_state(c)
+    assert state.queue is not None
+    c.portal.call(state.queue.wait_idle, timeout)  # type: ignore[union-attr]
 
 
 # ---------------------------------------------------------------- sample files

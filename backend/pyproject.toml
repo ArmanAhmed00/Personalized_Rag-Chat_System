@@ -70,6 +70,7 @@ select = ["E", "F", "W", "I", "B", "UP", "SIM", "RUF", "S", "C4", "PIE", "RET"]
 ignore = [
   "S101",   # assert is fine for internal invariants
   "S311",   # random is used for sampling, not security
+  "SIM905", # word lists are easier to read as one string
   "RUF001", "RUF002", "RUF003",  # typographic characters in UI copy are intentional
 ]
 
