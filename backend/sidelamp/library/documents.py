@@ -23,15 +23,6 @@ from pydantic import BaseModel, Field, ValidationError
 from sidelamp.store.files import read_json, write_json
 
 
-class DocType(StrEnum):
-    pdf = "pdf"
-    epub = "epub"
-    csv = "csv"
-
-
-EXTENSIONS: dict[str, DocType] = {".pdf": DocType.pdf, ".epub": DocType.epub, ".csv": DocType.csv}
-
-
 class Status(StrEnum):
     queued = "queued"
     reading = "reading"
@@ -63,7 +54,7 @@ class Document(BaseModel):
     sha256: str
     size: int
     mtime: float
-    type: DocType
+    type: str  # an extractor type: pdf, epub, csv, ...
     status: Status = Status.queued
     progress: Progress = Field(default_factory=Progress)
     error: DocErrorInfo | None = None
@@ -89,8 +80,11 @@ def new_doc_id() -> str:
     return uuid.uuid4().hex[:12]
 
 
-def doc_type_for(path: str | Path) -> DocType | None:
-    return EXTENSIONS.get(PurePosixPath(str(path)).suffix.lower())
+def doc_type_for(path: str | Path) -> str | None:
+    from sidelamp.ingest.extractors import extractor_for
+
+    extractor = extractor_for(str(path))
+    return extractor.type if extractor else None
 
 
 class DocumentIndex:

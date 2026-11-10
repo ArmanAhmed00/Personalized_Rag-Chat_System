@@ -1,8 +1,8 @@
 """Uploads: check what a file really is, then save it in the library under its own name.
 
-The extension must match the content. A ``.pdf`` must start like a PDF and open as one; an
-``.epub`` must be a valid EPUB zip; a ``.csv`` must be text. Files that look like two formats at
-once (polyglots) are refused.
+The extension must match the content: each file type's extractor sniffs the bytes, and a file
+that more than one type claims (a polyglot) is refused. Then the extractor's own deeper check runs
+(a PDF must open, an EPUB must be a valid book, a CSV must parse).
 """
 
 from __future__ import annotations
@@ -11,33 +11,15 @@ import contextlib
 import hashlib
 import os
 import uuid
-import zipfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import BinaryIO
 
 from sidelamp.errors import AppError
-from sidelamp.library.documents import DocType, doc_type_for
-from sidelamp.store.safepath import check_relative, resolve_inside, safe_name
+from sidelamp.ingest.extractors import Extractor, all_extractors, extractor_for
+from sidelamp.store.safepath import resolve_inside, safe_name
 
 CHUNK = 1024 * 1024
-
-_BINARY_MAGIC = (
-    b"%PDF-",
-    b"PK\x03\x04",
-    b"PK\x05\x06",
-    b"\x7fELF",
-    b"MZ",
-    b"\x89PNG",
-    b"\xff\xd8\xff",
-    b"GIF8",
-    b"\xca\xfe\xba\xbe",
-    b"\xcf\xfa\xed\xfe",
-    b"\x1f\x8b",
-    b"7z\xbc\xaf",
-    b"Rar!",
-    b"\xd0\xcf\x11\xe0",
-)
 
 
 class UploadRefused(AppError):
@@ -51,7 +33,7 @@ class SavedUpload:
     rel: str
     sha256: str
     size: int
-    type: DocType
+    type: str
 
 
 def unique_path(path: Path) -> Path:
@@ -67,112 +49,35 @@ def unique_path(path: Path) -> Path:
         n += 1
 
 
-def detect_type(path: Path) -> DocType | None:
-    """What the bytes say the file is (``None`` if unknown or ambiguous)."""
-    with open(path, "rb") as fh:
-        head = fh.read(4096)
-        fh.seek(0, os.SEEK_END)
-        size = fh.tell()
-        fh.seek(max(0, size - 65_536))
-        tail = fh.read()
-    pdf = b"%PDF-" in head[:1024]
-    zip_start = head.startswith(b"PK\x03\x04")
-    zip_end = b"PK\x05\x06" in tail
-    if pdf and (zip_start or zip_end):
-        return None  # PDF + ZIP polyglot
-    if pdf:
-        return DocType.pdf
-    if zip_start:
-        return DocType.epub if _is_epub_zip(path) else None
-    if _looks_like_text(head):
-        return DocType.csv
-    return None
+def _article(label: str) -> str:
+    return f"an {label}" if label[:1].lower() in "aeiou" else f"a {label}"
 
 
-def _is_epub_zip(path: Path) -> bool:
-    try:
-        with zipfile.ZipFile(path) as zf:
-            names = zf.namelist()
-            if not names or names[0] != "mimetype":
-                return False
-            if zf.read("mimetype").strip() != b"application/epub+zip":
-                return False
-            if "META-INF/container.xml" not in names:
-                return False
-            for name in names:
-                try:
-                    check_relative(name)
-                except AppError:
-                    return False  # zip-slip style entry
-            return True
-    except (zipfile.BadZipFile, OSError, KeyError):
-        return False
-
-
-def _looks_like_text(head: bytes) -> bool:
-    if not head or b"\x00" in head:
-        return False
-    if any(head.startswith(m) for m in _BINARY_MAGIC):
-        return False
-    for encoding in ("utf-8-sig", "cp1252", "latin-1"):
-        try:
-            head.decode(encoding)
-            return True
-        except UnicodeDecodeError:
-            continue
-    return False
-
-
-def validate_content(path: Path, expected: DocType) -> None:
-    """Deep check that the file opens as what it claims to be."""
-    found = detect_type(path)
-    names = {DocType.pdf: "a PDF", DocType.epub: "an EPUB ebook", DocType.csv: "a CSV file"}
-    if found != expected:
+def validate_content(path: Path, expected: Extractor) -> None:
+    claims = [e.type for e in all_extractors() if e.sniff(path)]
+    if expected.type not in claims or len(claims) > 1:
         raise UploadRefused(
             "content_mismatch",
-            f"This file is named like {names[expected]}, but its contents aren't. It wasn't added.",
+            f"This file is named like {_article(expected.label)}, but its contents aren't. "
+            f"It wasn't added.",
             415,
         )
-    if expected == DocType.pdf:
-        _check_pdf(path)
-    elif expected == DocType.csv:
-        _check_csv(path)
-
-
-def _check_pdf(path: Path) -> None:
-    import pymupdf
-
     try:
-        with pymupdf.open(path) as pdf:
-            if pdf.page_count < 1:
-                raise UploadRefused("damaged_file", "This PDF has no pages. It wasn't added.")
-            if pdf.needs_pass:
-                raise UploadRefused(
-                    "password_protected",
-                    "This PDF is password-protected. Remove the password and add it again.",
-                )
-    except UploadRefused:
-        raise
-    except Exception:
+        expected.validate(path)
+    except AppError as exc:
         raise UploadRefused(
-            "damaged_file", "This PDF can't be opened. It may be damaged."
+            exc.code, exc.message, 415 if exc.code == "content_mismatch" else 400
         ) from None
 
 
-def _check_csv(path: Path) -> None:
-    with open(path, "rb") as fh:
-        sample = fh.read(256 * 1024)
-    if b"\x00" in sample:
-        raise UploadRefused("content_mismatch", "This file isn't a text CSV. It wasn't added.", 415)
-    text = None
-    for encoding in ("utf-8-sig", "cp1252", "latin-1"):
-        try:
-            text = sample.decode(encoding)
-            break
-        except UnicodeDecodeError:
-            continue
-    if text is None or not text.strip():
-        raise UploadRefused("empty_file", "This CSV file is empty. It wasn't added.")
+def supported_message() -> str:
+    labels = sorted({e.label for e in all_extractors()})
+    return (
+        f"Sidelamp reads {', '.join(labels[:-1])} and {labels[-1]} files. This file type "
+        f"isn't supported yet."
+        if len(labels) > 1
+        else "This file type isn't supported."
+    )
 
 
 def save_stream(
@@ -186,13 +91,9 @@ def save_stream(
 ) -> SavedUpload:
     """Copy an upload into the library: size limit, hash, content check, collision-free name."""
     name = safe_name(filename)
-    kind = doc_type_for(name)
-    if kind is None:
-        raise UploadRefused(
-            "unsupported_type",
-            "Sidelamp reads PDF, EPUB and CSV files. This file type isn't supported yet.",
-            415,
-        )
+    extractor = extractor_for(name)
+    if extractor is None:
+        raise UploadRefused("unsupported_type", supported_message(), 415)
     target_dir = library_root
     if folder:
         target_dir = resolve_inside(library_root, folder)
@@ -224,7 +125,7 @@ def save_stream(
             os.fsync(out.fileno())
         if size == 0:
             raise UploadRefused("empty_file", "This file is empty. It wasn't added.")
-        validate_content(tmp, kind)
+        validate_content(tmp, extractor)
         target = _claim(target_dir / name)
         os.replace(tmp, target)
     except BaseException:
@@ -232,7 +133,7 @@ def save_stream(
             tmp.unlink()
         raise
     rel = target.resolve().relative_to(library_root.resolve()).as_posix()
-    return SavedUpload(target, rel, digest.hexdigest(), size, kind)
+    return SavedUpload(target, rel, digest.hexdigest(), size, extractor.type)
 
 
 def _claim(path: Path) -> Path:
