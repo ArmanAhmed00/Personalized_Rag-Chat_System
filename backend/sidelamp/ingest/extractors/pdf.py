@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import re
 import shutil
+import threading
 from collections import Counter, defaultdict
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -33,6 +34,10 @@ _PAGE_NUMBER = re.compile(
 )
 _EDGE = 0.09  # top/bottom share of the page where running headers and footers live
 _BOLD = 16
+
+# PyMuPDF isn't thread-safe. Every use of it (reading here, PDF export elsewhere) holds this lock,
+# so with several workers PDF reading takes turns while embedding still runs in parallel.
+MUPDF_LOCK = threading.RLock()
 
 
 @dataclass
@@ -81,7 +86,7 @@ class PdfExtractor:
         import pymupdf
 
         try:
-            with pymupdf.open(path) as pdf:
+            with MUPDF_LOCK, pymupdf.open(path) as pdf:
                 if pdf.needs_pass:
                     raise AppError(
                         "password_protected",
@@ -103,37 +108,40 @@ class PdfExtractor:
     ) -> Extracted:
         import pymupdf
 
-        try:
-            pdf = pymupdf.open(path)
-        except Exception:
-            raise DocumentError("damaged", "This PDF can't be opened. It may be damaged.") from None
-        with pdf:
-            if pdf.needs_pass:
+        use_ocr = options.ocr and ocr_available()
+        with MUPDF_LOCK:
+            try:
+                pdf = pymupdf.open(path)
+            except Exception:
                 raise DocumentError(
-                    "password_protected", "This PDF is password-protected, so it can't be read."
-                )
-            total = pdf.page_count
-            use_ocr = options.ocr and ocr_available()
-            pages: list[list[_Line]] = []
-            tables: list[list[tuple[float, str]]] = []
-            ocr_pages = 0
-            for number in range(total):
-                if cancelled():
-                    raise Cancelled()
-                progress(number, total, f"Reading page {number + 1} of {total}")
-                page = pdf[number]
-                lines, page_tables, used_ocr = _read_page(page, use_ocr)
-                ocr_pages += used_ocr
-                pages.append(lines)
-                tables.append(page_tables)
-            progress(total, total, f"Read {total} pages")
-            toc = [
-                (lvl, title.strip(), pg)
-                for lvl, title, pg in pdf.get_toc(simple=True)
-                if title and title.strip()
-            ]
-            heights = [pdf[i].rect.height for i in range(total)]
-            title = (pdf.metadata or {}).get("title") or ""
+                    "damaged", "This PDF can't be opened. It may be damaged."
+                ) from None
+            with pdf:
+                if pdf.needs_pass:
+                    raise DocumentError(
+                        "password_protected", "This PDF is password-protected, so it can't be read."
+                    )
+                total = pdf.page_count
+                pages: list[list[_Line]] = []
+                tables: list[list[tuple[float, str]]] = []
+                ocr_pages = 0
+                for number in range(total):
+                    if cancelled():
+                        raise Cancelled()
+                    progress(number, total, f"Reading page {number + 1} of {total}")
+                    page = pdf[number]
+                    lines, page_tables, used_ocr = _read_page(page, use_ocr)
+                    ocr_pages += used_ocr
+                    pages.append(lines)
+                    tables.append(page_tables)
+                progress(total, total, f"Read {total} pages")
+                toc = [
+                    (lvl, title.strip(), pg)
+                    for lvl, title, pg in pdf.get_toc(simple=True)
+                    if title and title.strip()
+                ]
+                heights = [pdf[i].rect.height for i in range(total)]
+                title = (pdf.metadata or {}).get("title") or ""
 
         _drop_running_lines(pages, heights)
         blocks = _to_blocks(pages, tables, toc)
