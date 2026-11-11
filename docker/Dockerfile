@@ -14,7 +14,7 @@ ENV NEXT_TELEMETRY_DISABLED=1
 RUN npm run build
 
 # ---------------------------------------------------------------- 2. a wheel with the web app inside
-FROM python:3.12-slim AS wheel
+FROM python:3.15-slim AS wheel
 # Patient downloads: a slow or dropped connection retries instead of failing the build.
 ENV PIP_DEFAULT_TIMEOUT=60 \
     PIP_RETRIES=10 \
@@ -29,7 +29,7 @@ COPY --from=web /src/frontend/out/ backend/outlawz/web/
 RUN python -m build --wheel --no-isolation --outdir /dist backend
 
 # ---------------------------------------------------------------- 3. the app
-FROM python:3.12-slim
+FROM python:3.15-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
