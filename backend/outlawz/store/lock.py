@@ -17,6 +17,7 @@ import contextlib
 import json
 import os
 import socket
+import sys
 import time
 import uuid
 from dataclasses import dataclass
@@ -38,7 +39,7 @@ def pid_alive(pid: int) -> bool:
     """Is a process with this id running on this computer?"""
     if pid <= 0:
         return False
-    if os.name == "nt":
+    if sys.platform == "win32":
         return _pid_alive_windows(pid)
     try:
         os.kill(pid, 0)
@@ -52,11 +53,15 @@ def pid_alive(pid: int) -> bool:
 
 
 def _pid_alive_windows(pid: int) -> bool:  # pragma: no cover - exercised on Windows CI
+    # The platform check lets mypy type-check this on Windows and skip it elsewhere, where
+    # ctypes.windll doesn't exist.
+    if sys.platform != "win32":
+        return False
     import ctypes
 
     process_query_limited_information = 0x1000
     still_active = 259
-    kernel32 = ctypes.windll.kernel32  # type: ignore[attr-defined]
+    kernel32 = ctypes.windll.kernel32
     handle = kernel32.OpenProcess(process_query_limited_information, False, pid)
     if not handle:
         return False

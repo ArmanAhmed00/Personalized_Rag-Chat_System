@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import asyncio
+import threading
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -121,6 +123,39 @@ async def test_reconcile_requeues_after_model_change(tmp_path: Path) -> None:
     assert q.reconcile() == 1
     await run_until_idle(q)
     assert ctx.docs.get("a").embed_model == "fake:hash-32"  # type: ignore[union-attr]
+
+
+async def test_read_again_while_a_pass_finishes_is_not_lost(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    ctx = make_ctx(tmp_path)
+    add(ctx, "a.pdf", "a")
+    calls: list[bool] = []
+    gate = threading.Event()
+    real = queue_module.process
+
+    def slow_process(doc_id: str, context: Any, **kwargs: Any) -> Any:
+        calls.append(bool(kwargs.get("force")))
+        if len(calls) == 1:
+            gate.wait(5)  # already past its last check: it finishes despite the request
+            kwargs["cancel"] = None
+        return real(doc_id, context, **kwargs)
+
+    monkeypatch.setattr(queue_module, "process", slow_process)
+    q = make_queue(ctx)
+    task = asyncio.create_task(q.run())
+    try:
+        while not q.is_running("a"):
+            await asyncio.sleep(0.01)
+        q.request("a", force=True)  # "Read again" while the first pass is finishing
+        gate.set()
+        await q.wait_idle(20)
+    finally:
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+    assert calls == [False, True]
+    assert ctx.docs.get("a").status == Status.ready  # type: ignore[union-attr]
 
 
 def test_backoff_grows_and_caps() -> None:

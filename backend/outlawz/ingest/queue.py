@@ -52,6 +52,7 @@ class IngestQueue:
         self._running: dict[str, threading.Event] = {}
         self._tasks: set[asyncio.Task[None]] = set()
         self._force: set[str] = set()
+        self._again: set[str] = set()  # asked to read again while a pass was still running
         self._retry_at: dict[str, float] = {}
         self.current: dict[str, float] = {}  # doc id -> start time, for the Processing page
 
@@ -73,6 +74,9 @@ class IngestQueue:
         """Queue a document (again). ``force`` ignores any existing output ("Read again")."""
         if doc_id in self._running:
             self._running[doc_id].set()  # stop the current pass; the new one starts after
+            # The pass may already be past its last check and finish anyway: queue it again
+            # when it ends, so this request is never lost.
+            self._again.add(doc_id)
         if force:
             self._force.add(doc_id)
         self._retry_at.pop(doc_id, None)
@@ -86,6 +90,7 @@ class IngestQueue:
         self.wake()
 
     def cancel(self, doc_id: str) -> bool:
+        self._again.discard(doc_id)
         event = self._running.get(doc_id)
         if event is not None:
             event.set()
@@ -185,6 +190,12 @@ class IngestQueue:
             self._tasks.add(task)
             task.add_done_callback(self._tasks.discard)
 
+    async def wait_stopped(self, doc_id: str, timeout: float = 30.0) -> None:
+        """Wait until the current pass of a document (if any) has ended."""
+        deadline = time.monotonic() + timeout
+        while doc_id in self._running and time.monotonic() < deadline:
+            await asyncio.sleep(0.02)
+
     async def wait_idle(self, timeout: float = 30.0) -> None:
         """Wait until nothing is queued or running (used by tests and the eval runner)."""
         deadline = time.monotonic() + timeout
@@ -231,6 +242,17 @@ class IngestQueue:
         finally:
             self._running.pop(doc_id, None)
             self.current.pop(doc_id, None)
+            if doc_id in self._again:
+                self._again.discard(doc_id)
+                again = self.docs.get(doc_id)
+                if again is not None and again.status != Status.queued:
+                    self.docs.update(
+                        doc_id,
+                        status=Status.queued,
+                        error=None,
+                        attempts=0,
+                        progress=Progress(message="Waiting to be read"),
+                    )
             if self.on_step is not None:
                 with contextlib.suppress(Exception):
                     self.on_step(

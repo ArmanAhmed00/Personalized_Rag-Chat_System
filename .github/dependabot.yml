@@ -1,3 +1,6 @@
+# Dependency updates: one grouped pull request per ecosystem, once a month. Major versions of
+# libraries and new Python/Node releases for the Docker image are left out: they need someone to
+# check the change log and test first, so update those by hand.
 version: 2
 updates:
   - package-ecosystem: pip
@@ -7,6 +10,10 @@ updates:
     groups:
       python:
         patterns: ["*"]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+
   - package-ecosystem: npm
     directory: /frontend
     schedule:
@@ -14,11 +21,25 @@ updates:
     groups:
       web:
         patterns: ["*"]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: monthly
+    groups:
+      actions:
+        patterns: ["*"]
+
   - package-ecosystem: docker
     directory: /docker
     schedule:
       interval: monthly
+    ignore:
+      # Python and Node versions are chosen to match what CI tests (Python 3.11-3.13, Node 22).
+      - dependency-name: "python"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
+      - dependency-name: "node"
+        update-types: ["version-update:semver-major"]

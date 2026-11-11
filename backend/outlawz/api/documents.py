@@ -195,6 +195,8 @@ async def rebuild_everything(state: State) -> dict[str, Any]:
     for doc in docs:
         if state.queue is not None and state.queue.is_running(doc.id):
             state.queue.cancel(doc.id)
+            # Let the pass stop before deleting its folder, so nothing is written into it after.
+            await state.queue.wait_stopped(doc.id)
         await asyncio.to_thread(remove_tree, state.lib.doc_dir(doc.id))
     state.events.emit("library_rebuilt", count=len(docs))
     if state.queue is not None:

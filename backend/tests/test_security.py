@@ -133,9 +133,13 @@ def test_downloads_cannot_leave_the_library(client: TestClient, settings: Settin
     state.docs.update(doc, path="../secret.txt")
     response = client.get(f"/api/documents/{doc}/file")
     assert response.status_code == 404 and "top secret" not in response.text
-    (settings.library / "link.pdf").symlink_to(secret)
-    state.docs.update(doc, path="link.pdf")
-    assert client.get(f"/api/documents/{doc}/file").status_code == 404
+    try:
+        (settings.library / "link.pdf").symlink_to(secret)
+    except OSError:
+        pass  # no right to make links here (Windows without developer mode)
+    else:
+        state.docs.update(doc, path="link.pdf")
+        assert client.get(f"/api/documents/{doc}/file").status_code == 404
     for path in (
         "/api/documents/..%2F..%2Fsecret.txt/file",
         "/api/exports/..%2F..%2Fx/download",
