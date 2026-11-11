@@ -1,9 +1,11 @@
 name: Release
 
-# Push a tag like v0.2.0 (matching outlawz/__init__.py) to publish:
-#   - a GitHub release with the wheel and sdist (the web app is built in),
-#   - the package on PyPI (trusted publishing: no token stored in the repository),
-#   - the Docker image on GitHub Container Registry.
+# Push a tag like v0.2.0 (matching outlawz/__init__.py), or create a release with that tag on
+# GitHub, to publish:
+#   - the wheel and sdist (the web app is built in), attached to the GitHub release,
+#   - the Docker image on GitHub Container Registry,
+#   - the package on PyPI, once the repository variable PUBLISH_TO_PYPI is "true" (trusted
+#     publishing: add this workflow as a pending publisher on pypi.org first; no token is stored).
 on:
   push:
     tags: ["v*.*.*"]
@@ -51,17 +53,23 @@ jobs:
         with:
           name: dist
           path: dist/
-      - name: Create the release with the changelog entry
+      - name: Create the release with the changelog entry (or add the files to an existing one)
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           version="${GITHUB_REF_NAME#v}"
-          awk -v v="$version" '$0 ~ "^## \\[" v "\\]" {on=1; next} /^## \[/ {on=0} on' CHANGELOG.md > notes.md
-          gh release create "$GITHUB_REF_NAME" dist/* --title "Outlawz $version" --notes-file notes.md
+          if gh release view "$GITHUB_REF_NAME" > /dev/null 2>&1; then
+            # Made on github.com: keep its title and notes, just attach the files.
+            gh release upload "$GITHUB_REF_NAME" dist/* --clobber
+          else
+            awk -v v="$version" '$0 ~ "^## \\[" v "\\]" {on=1; next} /^## \[/ {on=0} on' CHANGELOG.md > notes.md
+            gh release create "$GITHUB_REF_NAME" dist/* --title "Outlawz $version" --notes-file notes.md
+          fi
 
   pypi:
     name: Publish to PyPI
     needs: build
+    if: vars.PUBLISH_TO_PYPI == 'true'
     runs-on: ubuntu-latest
     environment:
       name: pypi
