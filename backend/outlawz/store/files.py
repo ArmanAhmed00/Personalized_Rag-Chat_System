@@ -43,9 +43,19 @@ def fsync_dir(path: Path) -> None:
         os.close(fd)
 
 
+# On Windows a file can't be replaced while another handle has it open, and opening a file at the
+# instant it's being replaced fails too. Both last only moments (a reader, antivirus, an indexer),
+# so both sides retry for up to about two seconds before giving up.
+_WINDOWS_TRIES = 25
+
+
+def _pause(attempt: int) -> None:
+    time.sleep(min(0.005 * 2**attempt, 0.1))
+
+
 def _replace(src: Path, dst: Path) -> None:
-    """``os.replace`` with a short retry: on Windows, antivirus or indexers briefly lock files."""
-    attempts = 5 if _IS_WINDOWS else 1
+    """``os.replace``, retried on Windows while another handle briefly holds ``dst``."""
+    attempts = _WINDOWS_TRIES if _IS_WINDOWS else 1
     for attempt in range(attempts):
         try:
             os.replace(src, dst)
@@ -53,7 +63,12 @@ def _replace(src: Path, dst: Path) -> None:
         except PermissionError:
             if attempt == attempts - 1:
                 raise
-            time.sleep(0.05 * (attempt + 1))
+            _pause(attempt)
+
+
+def replace_path(src: Path, dst: Path) -> None:
+    """Move a file or folder into place, riding out Windows' brief locks (see ``_replace``)."""
+    _replace(src, dst)
 
 
 def _temp_sibling(path: Path) -> Path:
@@ -84,13 +99,21 @@ def write_json(path: Path, data: Any, *, indent: int | None = 2) -> None:
 
 def read_json(path: Path, default: Any = _MISSING) -> Any:
     """Read a JSON file. Returns ``default`` if it is missing (or raises if no default)."""
-    try:
-        with open(path, encoding="utf-8") as fh:
-            return json.load(fh)
-    except FileNotFoundError:
-        if default is _MISSING:
-            raise
-        return default
+    attempts = _WINDOWS_TRIES if _IS_WINDOWS else 1
+    for attempt in range(attempts):
+        try:
+            with open(path, encoding="utf-8") as fh:
+                return json.load(fh)
+        except FileNotFoundError:
+            if default is _MISSING:
+                raise
+            return default
+        except PermissionError:
+            # Windows: the file is being replaced at this very moment.
+            if attempt == attempts - 1:
+                raise
+            _pause(attempt)
+    raise AssertionError("unreachable")  # pragma: no cover
 
 
 def _json_default(value: Any) -> Any:

@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 import asyncio
-import json
 import os
 import threading
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -143,7 +143,7 @@ def test_concurrent_threads_never_see_a_broken_file(tmp_path: Path) -> None:
     def reader() -> None:
         while not stop.is_set():
             try:
-                json.loads(target.read_text())
+                read_json(target)  # the app's reader: it rides out Windows' brief file locks
             except Exception as exc:  # pragma: no cover - would mean a torn write
                 errors.append(exc)
 
@@ -182,3 +182,36 @@ def test_write_is_durable_flag(tmp_path: Path) -> None:
     log = tmp_path / "a.jsonl"
     append_jsonl(log, {"a": 1}, sync=True)
     assert os.path.getsize(log) > 0
+
+
+def test_windows_locks_are_ridden_out(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """On Windows, replacing or opening a file another handle holds fails for a moment."""
+    monkeypatch.setattr(files, "_IS_WINDOWS", True)
+    monkeypatch.setattr(files, "_pause", lambda attempt: None)
+    real_replace = os.replace
+    busy = {"replace": 2}
+
+    def flaky_replace(src: Any, dst: Any) -> None:
+        if busy["replace"]:
+            busy["replace"] -= 1
+            raise PermissionError(13, "Permission denied")
+        real_replace(src, dst)
+
+    monkeypatch.setattr(files.os, "replace", flaky_replace)
+    target = tmp_path / "x.json"
+    write_json(target, {"ok": 1})
+    assert read_json(target) == {"ok": 1}
+
+    import builtins
+
+    real_open = builtins.open
+    busy["open"] = 3
+
+    def flaky_open(path: Any, *args: Any, **kwargs: Any) -> Any:
+        if Path(path) == target and busy["open"]:
+            busy["open"] -= 1
+            raise PermissionError(13, "Permission denied")
+        return real_open(path, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "open", flaky_open)
+    assert read_json(target) == {"ok": 1}

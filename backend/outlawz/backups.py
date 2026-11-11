@@ -30,7 +30,7 @@ from typing import Any
 from outlawz import APP_NAME, __version__
 from outlawz.errors import AppError
 from outlawz.paths import APP_DIR_NAME, LibraryPaths
-from outlawz.store.files import fsync_dir, read_json
+from outlawz.store.files import fsync_dir, read_json, replace_path
 from outlawz.store.migrations import read_format
 from outlawz.store.safepath import UnsafePath, check_relative, resolve_inside
 
@@ -145,12 +145,15 @@ def create_backup(
     target = dest_dir / backup_name(prefix)
     partial = target.with_name(target.name + ".partial")
     try:
-        with tarfile.open(partial, "w:gz") as tar:
-            _add(tar, MANIFEST, json.dumps(manifest, indent=2).encode())
-            for arcname, data in blobs:
-                _add(tar, arcname, data)
-        with open(partial, "rb") as fh:
-            os.fsync(fh.fileno())
+        with open(partial, "wb") as raw:
+            # tarfile leaves a file object it was given open, so it can be synced here
+            # (fsync needs a writable handle on Windows).
+            with tarfile.open(fileobj=raw, mode="w:gz") as tar:
+                _add(tar, MANIFEST, json.dumps(manifest, indent=2).encode())
+                for arcname, data in blobs:
+                    _add(tar, arcname, data)
+            raw.flush()
+            os.fsync(raw.fileno())
         partial.replace(target)
         fsync_dir(dest_dir)
     except BaseException:
@@ -345,15 +348,15 @@ def _swap_in(staging: Path, library: Path) -> None:
     app_new = staging / "app"
     aside = library / f"{RESTORE_ASIDE}{uuid.uuid4().hex[:8]}"
     if app_now.exists():
-        app_now.replace(aside)
+        replace_path(app_now, aside)
     try:
         if app_new.exists():
-            app_new.replace(app_now)
+            replace_path(app_new, app_now)
         else:
             app_now.mkdir()
     except BaseException:
         if aside.exists() and not app_now.exists():
-            aside.replace(app_now)
+            replace_path(aside, app_now)
         raise
     fsync_dir(library)
     documents = staging / "library"
@@ -364,7 +367,7 @@ def _swap_in(staging: Path, library: Path) -> None:
             rel = item.relative_to(documents).as_posix()
             target = resolve_inside(library, rel)
             target.parent.mkdir(parents=True, exist_ok=True)
-            os.replace(item, target)
+            replace_path(item, target)
     shutil.rmtree(aside, ignore_errors=True)
 
 
