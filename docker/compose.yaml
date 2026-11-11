@@ -33,6 +33,10 @@ services:
         required: false
     environment:
       OUTLAWZ_OLLAMA_URL: ${OUTLAWZ_OLLAMA_URL:-http://host.docker.internal:11434}
+      # Inside the container the app always listens on 8642; OUTLAWZ_PORT above only changes the
+      # port on your computer.
+      OUTLAWZ_HOST: "0.0.0.0"
+      OUTLAWZ_PORT: "8642"
     extra_hosts:
       - "host.docker.internal:host-gateway"
     restart: unless-stopped

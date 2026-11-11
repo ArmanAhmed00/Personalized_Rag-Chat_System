@@ -20,54 +20,126 @@ computed with real code on every row, never guessed by the model.
   folder inside your library. Everything there can be rebuilt from your documents, writes are
   crash-safe, and backups are checked against a SHA-256 manifest before a restore.
 
-By Arman Ahmed. [MIT licence](LICENSE).
+By Arman Ahmed, Yahya Sow, Vishal Naveen. [MIT licence](LICENSE).
 
-## Install
+## Quick start
 
-You need a model to answer questions. The easiest is [Ollama](https://ollama.com): install it,
-then download a model once:
+> [!IMPORTANT]
+> **First, get a model.** Outlawz needs one to answer questions. Install
+> [Ollama](https://ollama.com), start it, then download a model once:
+>
+> ```bash
+> ollama pull llama3.1:8b      # about 5 GB; on an 8 GB laptop, llama3.2:3b is faster
+> ```
+
+Then pick **one** of the three ways below. Each ends with Outlawz open at
+**<http://127.0.0.1:8642>**. The first visit walks you through choosing a library folder and a
+model, and offers sample documents to try.
+
+### Option 1: Docker (nothing else to install)
+
+Needs [Docker Desktop](https://www.docker.com/products/docker-desktop/) (or Docker Engine on Linux).
 
 ```bash
-ollama pull llama3.1:8b
+git clone https://github.com/ArmanAhmed00/Personalized_Rag-Chat_System.git outlawz
+cd outlawz
+mkdir -p docker/library                                # your documents go in this folder
+docker compose -f docker/compose.yaml up -d --build    # build and start (a few minutes the first time)
 ```
 
-Then pick one way to run Outlawz.
+| To | Run |
+|---|---|
+| **Open the app** | <http://127.0.0.1:8642> |
+| **Check it's running** | `docker compose -f docker/compose.yaml ps` (shows `healthy`) |
+| **See the logs** | `docker compose -f docker/compose.yaml logs -f` |
+| **Stop** | `docker compose -f docker/compose.yaml down` (your documents and chats are kept) |
+| **Start again** | `docker compose -f docker/compose.yaml up -d` |
+| **Update** | `git pull` then `docker compose -f docker/compose.yaml up -d --build` |
+| **Use another port** | `OUTLAWZ_PORT=8643 docker compose -f docker/compose.yaml up -d` |
+| **Run Ollama in Docker too** | `OUTLAWZ_OLLAMA_URL=http://ollama:11434 docker compose -f docker/compose.yaml --profile ollama up -d`<br>then `docker compose -f docker/compose.yaml exec ollama ollama pull llama3.1:8b` |
 
-### With pipx (recommended)
+The port is published on 127.0.0.1 only, and the app runs as an ordinary user (uid 1000).
+
+### Option 2: Run script (no Docker)
+
+Needs [Python 3.11+](https://www.python.org/downloads/) and [Node.js 20+](https://nodejs.org)
+(Node is only used once, to build the web app).
+
+**macOS and Linux**
+
+```bash
+git clone https://github.com/ArmanAhmed00/Personalized_Rag-Chat_System.git outlawz
+cd outlawz
+./scripts/run.sh
+```
+
+**Windows (PowerShell)**
+
+```powershell
+git clone https://github.com/ArmanAhmed00/Personalized_Rag-Chat_System.git outlawz
+cd outlawz
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass   # only if PowerShell blocks scripts
+.\scripts\run.ps1
+```
+
+The first run sets up `backend/.venv`, installs Outlawz into it, builds the web app and opens your
+browser. Later runs just start it.
+
+| To | macOS and Linux | Windows |
+|---|---|---|
+| **Start** | `./scripts/run.sh` | `.\scripts\run.ps1` |
+| **Stop** | <kbd>Ctrl</kbd>+<kbd>C</kbd> in that terminal | <kbd>Ctrl</kbd>+<kbd>C</kbd> in that terminal |
+| **Use another port** | `./scripts/run.sh --port 9000` | `.\scripts\run.ps1 --port 9000` |
+| **Update** | `git pull` then `backend/.venv/bin/python scripts/build_web.py` | `git pull` then `backend\.venv\Scripts\python scripts\build_web.py` |
+
+<details>
+<summary><b>Doing it by hand instead</b> (what the run script does)</summary>
+
+```bash
+cd backend
+python3 -m venv .venv
+source .venv/bin/activate          # Windows: .venv\Scripts\activate
+pip install -e .
+python ../scripts/build_web.py     # builds the web app (needs Node.js 20+)
+outlawz start
+```
+
+</details>
+
+### Option 3: pipx (after the first release is on PyPI)
 
 ```bash
 pipx install outlawz
 outlawz start
 ```
 
-Your browser opens at <http://127.0.0.1:8642>. The first run walks you through choosing a library
-folder and a model, and offers sample documents to try. Python 3.11 or newer is needed;
-[pipx](https://pipx.pypa.io) keeps Outlawz in its own environment. (Until the first release is on
-PyPI, use Docker or a checkout below.)
+### Commands
 
-### With Docker
+Once installed (Options 2 and 3), the `outlawz` command does everything else. With the run script,
+use `backend/.venv/bin/outlawz` (Windows: `backend\.venv\Scripts\outlawz`), or activate the
+environment first.
 
-```bash
-git clone https://github.com/ArmanAhmed00/Personalized_Rag-Chat_System.git outlawz
-cd outlawz
-mkdir -p docker/library                      # your documents go here
-docker compose -f docker/compose.yaml up -d --build
-```
+| Command | What it does |
+|---|---|
+| `outlawz start` | Start and open the browser |
+| `outlawz start --port 9000 --library ~/Notes --no-browser` | Another port, another library folder, no browser |
+| `outlawz doctor` | Check the setup and say how to fix each problem |
+| `outlawz backup` | Back up the library's app data (add `--documents` to include your files) |
+| `outlawz verify <backup.tar.gz>` | Check a backup against its manifest |
+| `outlawz restore <backup.tar.gz>` | Restore a backup (stop Outlawz first) |
+| `outlawz eval` | Run the evaluation benchmark |
+| `outlawz --help` | Every command and option |
 
-Open <http://127.0.0.1:8642>. The port is published on 127.0.0.1 only. Outlawz talks to Ollama
-on your computer through `host.docker.internal`; to run Ollama in Docker too, see the comments in
-[`docker/compose.yaml`](docker/compose.yaml). The app runs as an ordinary user (uid 1000), and
-your library and the app's data live in volumes.
+### If something goes wrong
 
-### From a checkout
-
-```bash
-./scripts/run.sh            # macOS and Linux
-.\scripts\run.ps1           # Windows PowerShell
-```
-
-The first run sets up `backend/.venv`, installs Outlawz into it and, if Node.js 20+ is
-installed, builds the web app. Later runs just start it.
+| Message | Fix |
+|---|---|
+| `Ollama doesn't have the model "llama3.1:8b"` | `ollama pull llama3.1:8b`, then click **Ask again** |
+| `Ollama isn't answering` | Start the Ollama app (or `ollama serve`) |
+| `Port 8642 is already in use` / `address already in use` | Find what uses it: `lsof -nP -iTCP:8642 -sTCP:LISTEN` (Windows: `netstat -ano \| findstr :8642`), stop it with `kill <PID>` (Windows: `taskkill /PID <PID> /F`), or use another port |
+| `failed to connect to the docker API` | Start Docker Desktop (macOS: `open -a Docker`) and try again |
+| Docker on Linux can't reach Ollama | Start Ollama with `OLLAMA_HOST=0.0.0.0 ollama serve`, or run Ollama in Docker (see the Docker table) |
+| Anything else | `outlawz doctor` (Docker: `docker compose -f docker/compose.yaml logs`) |
 
 ## Using it
 
@@ -112,17 +184,6 @@ in exports or in backups.
 Everything is in the Settings page. Each setting can also be fixed with an environment variable
 `OUTLAWZ_<NAME>` (for example `OUTLAWZ_PORT=9000`); the page then shows it as locked.
 [`.env.example`](.env.example) lists every setting with its default and what it does.
-
-Useful commands:
-
-```bash
-outlawz start --port 9000 --library ~/Notes   # another port or library
-outlawz doctor                                # check the setup and say how to fix problems
-outlawz backup --documents                    # back up the library
-outlawz verify <backup>                       # check a backup against its manifest
-outlawz restore <backup>                      # restore (Outlawz must not be running)
-outlawz eval                                  # run the evaluation benchmark
-```
 
 ## Privacy and security
 
