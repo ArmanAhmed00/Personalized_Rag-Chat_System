@@ -6,9 +6,9 @@ from pathlib import Path
 
 import pytest
 
-from sidelamp.chat.citations import check_citations, is_refusal
-from sidelamp.chat.preferences import PreferenceStore, detect_suggestion
-from sidelamp.chat.prompts import (
+from outlawz.chat.citations import check_citations, is_refusal
+from outlawz.chat.preferences import PreferenceStore, detect_suggestion
+from outlawz.chat.prompts import (
     PREFERENCES_HEADER,
     SYSTEM_PROMPT,
     Source,
@@ -18,10 +18,10 @@ from sidelamp.chat.prompts import (
     rewrite_messages,
     source_label,
 )
-from sidelamp.chat.rewrite import clean_query, rewrite_follow_up
-from sidelamp.errors import AppError, NotFound
-from sidelamp.llm.base import LLMError
-from sidelamp.llm.fake import FakeLLM
+from outlawz.chat.rewrite import clean_query, rewrite_follow_up
+from outlawz.errors import AppError, NotFound
+from outlawz.llm.base import LLMError
+from outlawz.llm.fake import FakeLLM
 
 
 def src(n: int, text: str, **passage: object) -> Source:

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from sidelamp.config import Settings
+from outlawz.config import Settings
 from tests.conftest import make_client
 
 REMOTE = ("192.168.1.20", 50000)
@@ -41,7 +41,7 @@ def test_token_required_when_set(settings: Settings) -> None:
         assert wrong.json()["error"]["code"] == "bad_token"
         ok = c.get("/api/documents", headers={"Authorization": "Bearer s3cret-token"})
         assert ok.status_code == 200
-        alt = c.get("/api/documents", headers={"X-Sidelamp-Token": "s3cret-token"})
+        alt = c.get("/api/documents", headers={"X-Outlawz-Token": "s3cret-token"})
         assert alt.status_code == 200
         assert c.get("/api/config").json()["token_required"] is True
 
@@ -66,8 +66,8 @@ def test_dns_rebinding_host_is_refused(settings: Settings) -> None:
 
 
 def test_explicitly_allowed_host(settings: Settings) -> None:
-    settings.allowed_hosts = ["sidelamp.home.arpa"]
-    with make_client(settings, base_url="http://sidelamp.home.arpa:8642") as c:
+    settings.allowed_hosts = ["outlawz.home.arpa"]
+    with make_client(settings, base_url="http://outlawz.home.arpa:8642") as c:
         assert c.get("/api/health").status_code == 200
 
 
@@ -82,7 +82,7 @@ def test_state_change_without_custom_header_is_refused(settings: Settings) -> No
         response = c.delete("/api/documents/abc")
         assert response.status_code == 403
         assert response.json()["error"]["code"] == "missing_header"
-        assert c.delete("/api/documents/abc", headers={"X-Sidelamp": "1"}).status_code == 404
+        assert c.delete("/api/documents/abc", headers={"X-Outlawz": "1"}).status_code == 404
 
 
 def test_cross_origin_request_is_refused(settings: Settings) -> None:

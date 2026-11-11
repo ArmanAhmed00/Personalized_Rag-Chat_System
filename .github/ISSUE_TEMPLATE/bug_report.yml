@@ -1,0 +1,53 @@
+name: Bug report
+description: Something doesn't work as it should.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time. Please don't paste document text, questions or answers you'd
+        rather keep private: Outlawz's logs never contain them, and a report doesn't need them.
+        Security problems go through a private report instead (see SECURITY.md).
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What you did, what you expected, and what happened instead.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Add the sample documents
+        2. Ask "..."
+        3. ...
+  - type: textarea
+    id: doctor
+    attributes:
+      label: Output of `outlawz doctor`
+      render: text
+  - type: input
+    id: request-id
+    attributes:
+      label: Request id (if an error showed one)
+  - type: input
+    id: version
+    attributes:
+      label: Outlawz version
+      placeholder: "0.1.0"
+    validations:
+      required: true
+  - type: dropdown
+    id: install
+    attributes:
+      label: How did you install it?
+      options: [pipx, Docker, run script from a checkout, other]
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: Operating system and model
+      placeholder: "macOS 15, Ollama with llama3.1:8b"

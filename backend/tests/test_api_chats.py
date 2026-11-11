@@ -9,10 +9,10 @@ from typing import Any
 import pytest
 from fastapi.testclient import TestClient
 
-from sidelamp.chat.answer import AnswerRun
-from sidelamp.config import Settings
-from sidelamp.llm.base import LLMError, Message
-from sidelamp.llm.fake import FakeLLM, default_responder
+from outlawz.chat.answer import AnswerRun
+from outlawz.config import Settings
+from outlawz.llm.base import LLMError, Message
+from outlawz.llm.fake import FakeLLM, default_responder
 from tests.conftest import app_state, make_client, wait_ingested
 from tests.test_api_search import add_pdf
 
@@ -326,7 +326,7 @@ def test_settings_hide_secrets_and_save(client: TestClient, settings: Settings) 
     assert body["settings"]["top_k"] == 5
     assert body["settings"]["openai_key"] is True  # only whether it's set
     assert "sk-secret" not in json.dumps(body)
-    assert "sk-secret" not in (settings.library / ".sidelamp" / "settings.json").read_text()
+    assert "sk-secret" not in (settings.library / ".outlawz" / "settings.json").read_text()
     assert "sk-secret" in (settings.data_dir / "secrets.json").read_text()
     # An empty secret keeps the current one.
     client.put("/api/settings", json={"changes": {"openai_key": ""}})
@@ -340,7 +340,7 @@ def test_settings_hide_secrets_and_save(client: TestClient, settings: Settings) 
 def test_settings_survive_restart(settings: Settings) -> None:
     with make_client(settings) as c:
         c.put("/api/settings", json={"changes": {"temperature": 0.5}})
-    from sidelamp.config import load_settings
+    from outlawz.config import load_settings
 
     reloaded = load_settings(library=settings.library, data_dir=settings.data_dir)
     assert reloaded.temperature == 0.5
@@ -361,8 +361,8 @@ def test_test_connection(client: TestClient) -> None:
 def test_changing_the_search_model_reprocesses(
     live_client: TestClient, library: dict[str, str], monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    import sidelamp.state as state_module
-    from sidelamp.ingest.embed import FakeEmbedder
+    import outlawz.state as state_module
+    from outlawz.ingest.embed import FakeEmbedder
 
     class OtherFake(FakeEmbedder):
         def __init__(self) -> None:

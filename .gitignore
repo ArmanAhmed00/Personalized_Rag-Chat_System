@@ -5,9 +5,9 @@
 *.pem
 *.key
 
-# Sidelamp data (never commit a library or its app folder)
-Sidelamp Library/
-.sidelamp/
+# Outlawz data (never commit a library or its app folder)
+Outlawz Library/
+.outlawz/
 
 # Python
 .venv/
@@ -24,7 +24,7 @@ dist/
 build/
 
 # Built web app copied into the Python package
-backend/sidelamp/web/
+backend/outlawz/web/
 
 # Node
 node_modules/
@@ -42,4 +42,5 @@ Thumbs.db
 *.swp
 
 # Sync helper used while developing
-.sidelamp-sync.tar.gz
+.outlawz-sync.tar.gz
+docker/library/

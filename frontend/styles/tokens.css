@@ -1,0 +1,85 @@
+/* Design tokens: a calm paper-and-ink look. Yellow is the highlighter (citations and highlights),
+   teal is for links and focus, red is for danger. */
+:root {
+  /* Surfaces */
+  --paper: #f4f6f9; /* cool off-white page */
+  --panel: #ffffff;
+  --panel-sunk: #eef1f6;
+  --line: #dde3ec;
+  --line-strong: #c4cddb;
+
+  /* Ink */
+  --ink: #14213d; /* deep navy */
+  --ink-2: #3d4a63;
+  --ink-3: #5c6b84; /* muted text, still AA on white and paper */
+  --ink-inverse: #ffffff;
+
+  /* Accents */
+  --highlight: #ffe36e; /* yellow highlighter */
+  --highlight-soft: #fff4bf;
+  --highlight-ink: #4a3b00;
+  --teal: #0b7a75;
+  --teal-strong: #075e5a;
+  --teal-soft: #e3f4f2;
+  --focus: #0b7a75;
+  --danger: #b42318;
+  --danger-soft: #fdecea;
+  --warn: #8a5a00;
+  --warn-soft: #fff6e0;
+  --good: #11713d;
+  --good-soft: #e5f5ec;
+
+  /* Charts: categorical slots (validated for colour-blind separation), "Other", grid */
+  --series-1: #2a78d6;
+  --series-2: #eb6834;
+  --series-3: #1baf7a;
+  --series-4: #eda100;
+  --series-5: #e87ba4;
+  --series-6: #008300;
+  --series-7: #6250d6;
+  --series-8: #e34948;
+  --series-other: #9aa3b2;
+  --grid: #e6eaf0;
+  --axis: #c4cddb;
+
+  /* Type */
+  --font-ui: "Bricolage Grotesque Variable", "Bricolage Grotesque", system-ui, -apple-system,
+    "Segoe UI", sans-serif;
+  --font-read: "Literata Variable", "Literata", Georgia, "Times New Roman", serif;
+  --font-mono: ui-monospace, "SFMono-Regular", "Cascadia Mono", Menlo, Consolas, monospace;
+  --text-xs: 0.75rem;
+  --text-sm: 0.875rem;
+  --text-md: 1rem;
+  --text-lg: 1.125rem;
+  --text-xl: 1.375rem;
+  --text-2xl: 1.875rem;
+  --text-3xl: 2.5rem;
+
+  /* Shape */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+  --radius-pill: 999px;
+  --shadow: 0 1px 2px rgb(20 33 61 / 6%), 0 4px 16px rgb(20 33 61 / 7%);
+  --shadow-lift: 0 2px 4px rgb(20 33 61 / 8%), 0 12px 32px rgb(20 33 61 / 12%);
+  --ring: 0 0 0 3px rgb(11 122 117 / 35%);
+
+  /* Space */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
+  --space-6: 2rem;
+  --space-7: 3rem;
+
+  --sidebar: 15.5rem;
+  --panel-width: 26rem;
+  --speed: 160ms;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --speed: 0ms;
+  }
+}

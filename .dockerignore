@@ -1,0 +1,21 @@
+# Keep the build context small and free of local data and secrets.
+.git
+.github
+**/.venv
+**/venv
+**/__pycache__
+**/*.pyc
+**/.pytest_cache
+**/.mypy_cache
+**/.ruff_cache
+frontend/node_modules
+frontend/.next
+frontend/out
+backend/outlawz/web
+backend/dist
+**/.env
+**/.env.*
+**/.outlawz
+**/Outlawz Library
+docker/library
+*.tar.gz

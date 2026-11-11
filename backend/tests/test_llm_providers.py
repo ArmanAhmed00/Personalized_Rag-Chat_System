@@ -8,12 +8,12 @@ from collections.abc import Callable
 import httpx
 import pytest
 
-from sidelamp.config import Settings
-from sidelamp.llm.anthropic import AnthropicProvider
-from sidelamp.llm.base import LLMError, Message, TextDelta, Usage, complete, iter_sse, make_llm
-from sidelamp.llm.fake import FakeLLM
-from sidelamp.llm.ollama import OllamaProvider
-from sidelamp.llm.openai import OpenAICompatible
+from outlawz.config import Settings
+from outlawz.llm.anthropic import AnthropicProvider
+from outlawz.llm.base import LLMError, Message, TextDelta, Usage, complete, iter_sse, make_llm
+from outlawz.llm.fake import FakeLLM
+from outlawz.llm.ollama import OllamaProvider
+from outlawz.llm.openai import OpenAICompatible
 
 pytestmark = pytest.mark.anyio
 

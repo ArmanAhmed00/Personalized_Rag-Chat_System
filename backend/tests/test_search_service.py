@@ -6,11 +6,11 @@ from pathlib import Path
 
 import numpy as np
 
-from sidelamp.ingest.embed import FakeEmbedder
-from sidelamp.search.index import SearchIndex
-from sidelamp.search.rerank import CrossEncoderReranker, LexicalReranker, Reranker
-from sidelamp.search.service import SearchOptions, SearchService
-from sidelamp.search.tokenizer import term_frequencies
+from outlawz.ingest.embed import FakeEmbedder
+from outlawz.search.index import SearchIndex
+from outlawz.search.rerank import CrossEncoderReranker, LexicalReranker, Reranker
+from outlawz.search.service import SearchOptions, SearchService
+from outlawz.search.tokenizer import term_frequencies
 
 TEXTS = [
     "Shipping takes five to seven business days within the country.",

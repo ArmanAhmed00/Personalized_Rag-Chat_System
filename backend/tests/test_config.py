@@ -6,9 +6,9 @@ from pathlib import Path
 
 import pytest
 
-from sidelamp.config import load_settings, save_library_choice, save_settings
-from sidelamp.errors import AppError
-from sidelamp.store.files import read_json, write_json
+from outlawz.config import Settings, load_settings, save_library_choice, save_settings
+from outlawz.errors import AppError
+from outlawz.store.files import read_json, write_json
 
 
 def _base(tmp_path: Path) -> dict[str, Path]:
@@ -25,23 +25,23 @@ def test_defaults(tmp_path: Path) -> None:
 
 
 def test_settings_file_overrides_defaults(tmp_path: Path) -> None:
-    write_json(tmp_path / "lib" / ".sidelamp" / "settings.json", {"top_k": 5, "port": 1})
+    write_json(tmp_path / "lib" / ".outlawz" / "settings.json", {"top_k": 5, "port": 1})
     s = load_settings(**_base(tmp_path))
     assert s.top_k == 5
     assert s.port == 8642  # machine settings can't come from the library file
 
 
 def test_env_overrides_settings_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    write_json(tmp_path / "lib" / ".sidelamp" / "settings.json", {"top_k": 5})
-    monkeypatch.setenv("SIDELAMP_TOP_K", "11")
+    write_json(tmp_path / "lib" / ".outlawz" / "settings.json", {"top_k": 5})
+    monkeypatch.setenv("OUTLAWZ_TOP_K", "11")
     s = load_settings(**_base(tmp_path))
     assert s.top_k == 11
     assert "top_k" in s.locked
 
 
 def test_env_list_values(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("SIDELAMP_ALLOWED_HOSTS", "a.local, b.local")
-    monkeypatch.setenv("SIDELAMP_DEV_ORIGINS", '["http://localhost:3000"]')
+    monkeypatch.setenv("OUTLAWZ_ALLOWED_HOSTS", "a.local, b.local")
+    monkeypatch.setenv("OUTLAWZ_DEV_ORIGINS", '["http://localhost:3000"]')
     s = load_settings(**_base(tmp_path))
     assert s.allowed_hosts == ["a.local", "b.local"]
     assert s.dev_origins == ["http://localhost:3000"]
@@ -55,7 +55,7 @@ def test_library_choice_from_setup(tmp_path: Path) -> None:
 
 
 def test_bad_settings_file_value_does_not_crash(tmp_path: Path) -> None:
-    write_json(tmp_path / "lib" / ".sidelamp" / "settings.json", {"top_k": "lots"})
+    write_json(tmp_path / "lib" / ".outlawz" / "settings.json", {"top_k": "lots"})
     assert load_settings(**_base(tmp_path)).top_k == 8
 
 
@@ -63,7 +63,7 @@ def test_save_settings_splits_secrets(tmp_path: Path) -> None:
     s = load_settings(**_base(tmp_path))
     updated = save_settings(s, {"top_k": 4, "openai_key": "sk-test"})
     assert updated.top_k == 4
-    lib_file = read_json(tmp_path / "lib" / ".sidelamp" / "settings.json")
+    lib_file = read_json(tmp_path / "lib" / ".outlawz" / "settings.json")
     assert lib_file == {"top_k": 4}
     secrets = tmp_path / "data" / "secrets.json"
     assert read_json(secrets) == {"openai_key": "sk-test"}
@@ -84,7 +84,7 @@ def test_save_settings_validates(tmp_path: Path) -> None:
 
 
 def test_locked_setting_cannot_be_saved(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("SIDELAMP_TOP_K", "3")
+    monkeypatch.setenv("OUTLAWZ_TOP_K", "3")
     s = load_settings(**_base(tmp_path))
     with pytest.raises(AppError) as info:
         save_settings(s, {"top_k": 4})
@@ -97,3 +97,19 @@ def test_cloud_detection(tmp_path: Path) -> None:
         **_base(tmp_path), llm="openai", openai_url="https://api.openai.com/v1"
     ).is_cloud_llm
     assert not load_settings(**_base(tmp_path), llm="openai").is_cloud_llm
+    # A Docker Compose service name is on this computer.
+    assert not load_settings(
+        **_base(tmp_path), llm="ollama", ollama_url="http://ollama:11434"
+    ).is_cloud_llm
+    assert load_settings(
+        **_base(tmp_path), llm="ollama", ollama_url="https://ollama.example.com"
+    ).is_cloud_llm
+
+
+def test_env_example_lists_every_setting() -> None:
+    example = Path(__file__).resolve().parents[2] / ".env.example"
+    if not example.is_file():  # e.g. an sdist, which ships only the backend
+        pytest.skip(".env.example isn't in this checkout")
+    text = example.read_text(encoding="utf-8")
+    missing = [k for k in Settings.model_fields if f"OUTLAWZ_{k.upper()}=" not in text]
+    assert missing == []

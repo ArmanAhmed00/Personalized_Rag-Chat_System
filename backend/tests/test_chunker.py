@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from sidelamp.ingest.chunker import ChunkSettings, chunk_blocks, count_tokens, split_sentences
-from sidelamp.ingest.extractors.base import Block
+from outlawz.ingest.chunker import ChunkSettings, chunk_blocks, count_tokens, split_sentences
+from outlawz.ingest.extractors.base import Block
 
 CFG = ChunkSettings(target=60, overlap=12, minimum=10)
 

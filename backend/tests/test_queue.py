@@ -7,12 +7,12 @@ from pathlib import Path
 
 import pytest
 
-from sidelamp.errors import TransientError
-from sidelamp.ingest import queue as queue_module
-from sidelamp.ingest.embed import FakeEmbedder
-from sidelamp.ingest.queue import IngestQueue, backoff_seconds
-from sidelamp.library.documents import Document, Status
-from sidelamp.library.uploads import sha256_file
+from outlawz.errors import TransientError
+from outlawz.ingest import queue as queue_module
+from outlawz.ingest.embed import FakeEmbedder
+from outlawz.ingest.queue import IngestQueue, backoff_seconds
+from outlawz.library.documents import Document, Status
+from outlawz.library.uploads import sha256_file
 from tests.builders import simple_pdf
 from tests.test_pipeline import make_ctx
 

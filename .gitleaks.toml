@@ -1,0 +1,15 @@
+# Secret scanning (gitleaks), used by CI. The default rules apply; the tests contain obviously
+# fake keys on purpose, to prove real ones never reach responses, logs or exports.
+title = "Outlawz"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Fake keys in tests, and build output that is never committed"
+paths = [
+  '''^backend/tests/''',
+  '''^frontend/\.next/''',
+  '''^frontend/node_modules/''',
+  '''^backend/outlawz/web/''',
+]

@@ -1,0 +1,51 @@
+# Outlawz with Docker Compose. From the repository root:
+#
+#   docker compose -f docker/compose.yaml up -d --build
+#   open http://127.0.0.1:8642
+#
+# Your documents go in docker/library (or set OUTLAWZ_LIBRARY_DIR to any folder). Create the
+# folder before the first start, so it belongs to you and not to root:  mkdir -p docker/library
+# The app runs as uid 1000; if your user id differs, add  user: "<your uid>:<your gid>"  below.
+# The port is published on 127.0.0.1 only, so other devices on your network can't reach it.
+#
+# Model: by default Outlawz talks to Ollama running on your computer (outside Docker). To run
+# Ollama in Docker too, start the "ollama" profile and point Outlawz at it:
+#
+#   OUTLAWZ_OLLAMA_URL=http://ollama:11434 docker compose -f docker/compose.yaml --profile ollama up -d
+#   docker compose -f docker/compose.yaml exec ollama ollama pull llama3.1:8b
+
+name: outlawz
+
+services:
+  outlawz:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    image: outlawz:local
+    ports:
+      - "127.0.0.1:${OUTLAWZ_PORT:-8642}:8642"
+    volumes:
+      - ${OUTLAWZ_LIBRARY_DIR:-./library}:/library
+      - outlawz-data:/data
+    # Optional: any setting from .env.example, in a .env file at the repository root.
+    env_file:
+      - path: ../.env
+        required: false
+    environment:
+      OUTLAWZ_OLLAMA_URL: ${OUTLAWZ_OLLAMA_URL:-http://host.docker.internal:11434}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+
+  ollama:
+    image: ollama/ollama:latest
+    profiles: ["ollama"]
+    ports:
+      - "127.0.0.1:11434:11434"
+    volumes:
+      - ollama-models:/root/.ollama
+    restart: unless-stopped
+
+volumes:
+  outlawz-data:
+  ollama-models:

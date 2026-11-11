@@ -1,8 +1,8 @@
 {
-  "name": "sidelamp-web",
+  "name": "outlawz-web",
   "version": "0.1.0",
   "private": true,
-  "description": "The Sidelamp web app, built as a static export and served by the Python app.",
+  "description": "The Outlawz web app, built as a static export and served by the Python app.",
   "license": "MIT",
   "scripts": {
     "dev": "next dev --port 3000",

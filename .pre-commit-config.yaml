@@ -30,7 +30,7 @@ repos:
         entry: bash -c 'cd backend && mypy'
         language: system
         pass_filenames: false
-        files: ^backend/sidelamp/.*\.py$
+        files: ^backend/outlawz/.*\.py$
       - id: eslint
         name: eslint (frontend)
         entry: bash -c 'cd frontend && npx eslint .'

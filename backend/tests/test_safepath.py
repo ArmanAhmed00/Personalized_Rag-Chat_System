@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from sidelamp.store.safepath import UnsafePath, check_relative, resolve_inside, safe_name
+from outlawz.store.safepath import UnsafePath, check_relative, resolve_inside, safe_name
 
 
 @pytest.mark.parametrize(

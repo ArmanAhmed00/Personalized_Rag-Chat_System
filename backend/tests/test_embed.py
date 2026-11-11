@@ -6,8 +6,8 @@ import httpx
 import numpy as np
 import pytest
 
-from sidelamp.errors import TransientError
-from sidelamp.ingest.embed import FakeEmbedder, OllamaEmbedder, normalise
+from outlawz.errors import TransientError
+from outlawz.ingest.embed import FakeEmbedder, OllamaEmbedder, normalise
 
 
 def test_fake_embedder_is_deterministic_and_normalised() -> None:

@@ -3,7 +3,7 @@ requires = ["hatchling>=1.25"]
 build-backend = "hatchling.build"
 
 [project]
-name = "sidelamp"
+name = "outlawz"
 dynamic = ["version"]
 description = "Chat with your own documents on your own computer. Every answer cites the passage it came from."
 readme = "README.md"
@@ -43,23 +43,23 @@ dependencies = [
 dev = ["pytest>=8", "ruff>=0.7", "mypy>=1.13", "pre-commit>=4"]
 
 [project.scripts]
-sidelamp = "sidelamp.cli:main"
+outlawz = "outlawz.cli:main"
 
 [project.urls]
 Homepage = "https://github.com/ArmanAhmed00/Personalized_Rag-Chat_System"
 Issues = "https://github.com/ArmanAhmed00/Personalized_Rag-Chat_System/issues"
 
 [tool.hatch.version]
-path = "sidelamp/__init__.py"
+path = "outlawz/__init__.py"
 
 [tool.hatch.build.targets.wheel]
-packages = ["sidelamp"]
+packages = ["outlawz"]
 # The built web app is gitignored, so it has to be listed explicitly.
-artifacts = ["sidelamp/web/**"]
+artifacts = ["outlawz/web/**"]
 
 [tool.hatch.build.targets.sdist]
-include = ["sidelamp", "tests", "README.md", "pyproject.toml"]
-artifacts = ["sidelamp/web/**"]
+include = ["outlawz", "tests", "README.md", "pyproject.toml"]
+artifacts = ["outlawz/web/**"]
 
 [tool.ruff]
 line-length = 100
@@ -79,7 +79,7 @@ ignore = [
 
 [tool.mypy]
 python_version = "3.11"
-files = ["sidelamp"]
+files = ["outlawz"]
 check_untyped_defs = true
 disallow_untyped_defs = true
 disallow_incomplete_defs = true

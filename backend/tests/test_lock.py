@@ -8,9 +8,9 @@ from pathlib import Path
 
 import pytest
 
-from sidelamp.errors import LibraryLocked
-from sidelamp.store import lock as lock_module
-from sidelamp.store.lock import InstanceLock
+from outlawz.errors import LibraryLocked
+from outlawz.store import lock as lock_module
+from outlawz.store.lock import InstanceLock
 
 
 def _write_lock(path: Path, **fields: object) -> None:
@@ -95,8 +95,8 @@ def test_heartbeat_notices_takeover(tmp_path: Path) -> None:
 
 
 def test_app_refuses_second_copy(tmp_path: Path) -> None:
-    from sidelamp.config import load_settings
-    from sidelamp.state import AppState
+    from outlawz.config import load_settings
+    from outlawz.state import AppState
 
     settings = load_settings(library=tmp_path / "lib", data_dir=tmp_path / "data")
     first = AppState(settings)
