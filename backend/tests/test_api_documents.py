@@ -8,7 +8,7 @@ from pathlib import Path
 
 from fastapi.testclient import TestClient
 
-from sidelamp.config import Settings
+from outlawz.config import Settings
 from tests.conftest import csv_bytes, epub_bytes, make_client, pdf_bytes
 
 
@@ -172,7 +172,7 @@ def test_errors_are_json_without_internals(client: TestClient, settings: Setting
 def test_unexpected_error_hides_details(settings: Settings) -> None:
     from fastapi import APIRouter
 
-    from sidelamp.app import create_app
+    from outlawz.app import create_app
 
     app = create_app(settings, background=False)
     router = APIRouter()
@@ -181,7 +181,7 @@ def test_unexpected_error_hides_details(settings: Settings) -> None:
     def boom() -> None:
         raise RuntimeError(f"secret path {settings.data_dir} and key sk-123")
 
-    app.include_router(router)
+    app.router.routes.insert(0, router.routes[0])  # ahead of the web app's catch-all mount
     with TestClient(app, base_url="http://127.0.0.1:8642", client=("127.0.0.1", 1)) as c:
         response = c.get("/api/boom")
     assert response.status_code == 500
@@ -198,14 +198,14 @@ def test_validation_error_is_plain(client: TestClient) -> None:
 
 def test_public_config(client: TestClient, settings: Settings) -> None:
     config = client.get("/api/config").json()
-    assert config["app"] == "Sidelamp"
+    assert config["app"] == "Outlawz"
     assert config["library"] == str(settings.library)
     assert config["cloud"] is False
     assert config["needs_setup"] is True
 
 
 def test_library_folder_layout(client: TestClient, settings: Settings) -> None:
-    app_dir = settings.library / ".sidelamp"
+    app_dir = settings.library / ".outlawz"
     assert (app_dir / "format.json").exists()
     assert (app_dir / "lock").exists()
     for name in ("docs", "chats", "logs", "tmp"):

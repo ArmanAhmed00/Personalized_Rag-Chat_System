@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from sidelamp.search.tokenizer import singular, term_frequencies, tokenize
+from outlawz.search.tokenizer import singular, term_frequencies, tokenize
 
 
 @pytest.mark.parametrize(

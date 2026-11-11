@@ -8,13 +8,13 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from sidelamp.errors import DocumentError
-from sidelamp.ingest import pipeline
-from sidelamp.ingest.chunker import ChunkSettings
-from sidelamp.ingest.embed import FakeEmbedder
-from sidelamp.ingest.extractors import ExtractOptions
-from sidelamp.ingest.extractors.base import Cancelled
-from sidelamp.ingest.pipeline import (
+from outlawz.errors import DocumentError
+from outlawz.ingest import pipeline
+from outlawz.ingest.chunker import ChunkSettings
+from outlawz.ingest.embed import FakeEmbedder
+from outlawz.ingest.extractors import ExtractOptions
+from outlawz.ingest.extractors.base import Cancelled
+from outlawz.ingest.pipeline import (
     FileGone,
     PipelineContext,
     needs_processing,
@@ -23,9 +23,9 @@ from sidelamp.ingest.pipeline import (
     read_passages,
     read_vectors,
 )
-from sidelamp.library.documents import Document, DocumentIndex, Status
-from sidelamp.library.uploads import sha256_file
-from sidelamp.paths import LibraryPaths
+from outlawz.library.documents import Document, DocumentIndex, Status
+from outlawz.library.uploads import sha256_file
+from outlawz.paths import LibraryPaths
 from tests.builders import structured_pdf
 
 
@@ -98,7 +98,7 @@ def test_model_change_only_recomputes_vectors(
     def no_extract(*args: object, **kwargs: object) -> None:
         raise AssertionError("should not re-read the file")
 
-    from sidelamp.ingest.extractors import get_extractor
+    from outlawz.ingest.extractors import get_extractor
 
     monkeypatch.setattr(get_extractor("pdf"), "extract", no_extract)
     done = process("doc1", ctx)

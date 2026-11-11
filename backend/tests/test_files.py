@@ -8,8 +8,8 @@ from pathlib import Path
 
 import pytest
 
-from sidelamp.store import files
-from sidelamp.store.files import (
+from outlawz.store import files
+from outlawz.store.files import (
     KeyedLocks,
     append_jsonl,
     atomic_dir,

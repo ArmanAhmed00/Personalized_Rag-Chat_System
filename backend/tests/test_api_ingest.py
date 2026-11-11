@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from fastapi.testclient import TestClient
 
-from sidelamp.config import Settings
-from sidelamp.library.documents import Status
+from outlawz.config import Settings
+from outlawz.library.documents import Status
 from tests.builders import structured_pdf
 from tests.conftest import app_state, csv_bytes, make_client, pdf_bytes, wait_ingested
 
@@ -30,7 +30,12 @@ def test_read_again(live_client: TestClient) -> None:
     doc = live_client.post("/api/documents", files={"file": ("d.csv", csv_bytes())}).json()
     wait_ingested(live_client)
     again = live_client.post(f"/api/documents/{doc['id']}/reread").json()
-    assert again["status"] == "queued"
+    assert again["status"] in (
+        "queued",
+        "reading",
+        "chunking",
+        "embedding",
+    )  # a worker may start at once
     wait_ingested(live_client)
     assert live_client.get(f"/api/documents/{doc['id']}").json()["status"] == "ready"
 
@@ -41,7 +46,7 @@ def test_rebuild_everything_restores_processed_data(
     for name in ("a.csv", "b.csv"):
         live_client.post("/api/documents", files={"file": (name, csv_bytes())})
     wait_ingested(live_client)
-    docs_dir = settings.library / ".sidelamp" / "docs"
+    docs_dir = settings.library / ".outlawz" / "docs"
     for folder in docs_dir.iterdir():  # someone deletes the processed data
         for f in folder.iterdir():
             f.unlink()

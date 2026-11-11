@@ -5,13 +5,13 @@ from pathlib import Path
 
 import pytest
 
-from sidelamp.errors import AppError
-from sidelamp.store.files import read_json, write_json
-from sidelamp.store.migrations import CURRENT_FORMAT, ensure_format, read_format, write_format
+from outlawz.errors import AppError
+from outlawz.store.files import read_json, write_json
+from outlawz.store.migrations import CURRENT_FORMAT, ensure_format, read_format, write_format
 
 
 def test_new_folder_is_stamped(tmp_path: Path) -> None:
-    app = tmp_path / ".sidelamp"
+    app = tmp_path / ".outlawz"
     app.mkdir()
     report = ensure_format(app, tmp_path / "backups")
     assert not report.migrated
@@ -20,14 +20,14 @@ def test_new_folder_is_stamped(tmp_path: Path) -> None:
 
 
 def test_current_format_is_left_alone(tmp_path: Path) -> None:
-    app = tmp_path / ".sidelamp"
+    app = tmp_path / ".outlawz"
     app.mkdir()
     write_format(app, CURRENT_FORMAT)
     assert not ensure_format(app, tmp_path / "backups").migrated
 
 
 def test_old_format_backs_up_then_migrates_in_order(tmp_path: Path) -> None:
-    app = tmp_path / ".sidelamp"
+    app = tmp_path / ".outlawz"
     app.mkdir()
     write_format(app, 1)
     write_json(app / "documents.json", {"documents": [{"name": "a"}]})
@@ -53,13 +53,13 @@ def test_old_format_backs_up_then_migrates_in_order(tmp_path: Path) -> None:
     assert read_json(app / "documents.json") == {"documents": [{"title": "a"}]}
     assert report.backup is not None and report.backup.exists()
     with tarfile.open(report.backup) as tar:
-        member = tar.extractfile(".sidelamp/documents.json")
+        member = tar.extractfile(".outlawz/documents.json")
         assert member is not None
         assert b'"name": "a"' in member.read()  # the backup holds the old format
 
 
 def test_crash_mid_upgrade_resumes(tmp_path: Path) -> None:
-    app = tmp_path / ".sidelamp"
+    app = tmp_path / ".outlawz"
     app.mkdir()
     write_format(app, 1)
     attempts = {"n": 0}
@@ -83,17 +83,17 @@ def test_crash_mid_upgrade_resumes(tmp_path: Path) -> None:
 
 
 def test_newer_format_is_refused(tmp_path: Path) -> None:
-    app = tmp_path / ".sidelamp"
+    app = tmp_path / ".outlawz"
     app.mkdir()
     write_format(app, CURRENT_FORMAT + 5)
     with pytest.raises(AppError) as info:
         ensure_format(app, tmp_path / "backups")
     assert info.value.code == "newer_format"
-    assert "Update Sidelamp" in info.value.message
+    assert "Update Outlawz" in info.value.message
 
 
 def test_missing_migration_is_refused_without_changes(tmp_path: Path) -> None:
-    app = tmp_path / ".sidelamp"
+    app = tmp_path / ".outlawz"
     app.mkdir()
     write_format(app, 1)
     with pytest.raises(AppError) as info:

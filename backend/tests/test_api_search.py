@@ -6,7 +6,7 @@ import shutil
 
 from fastapi.testclient import TestClient
 
-from sidelamp.config import Settings
+from outlawz.config import Settings
 from tests.builders import simple_pdf
 from tests.conftest import app_state, make_client, wait_ingested
 
@@ -71,8 +71,8 @@ def test_deleting_processed_data_and_rebuilding_restores_search(settings: Settin
     with make_client(settings, background=True) as c:
         add_pdf(c, settings, "a.pdf", "Quarterly revenue grew by 12 percent.")
         wait_ingested(c)
-    shutil.rmtree(settings.library / ".sidelamp" / "docs")  # processed data gone
-    (settings.library / ".sidelamp" / "docs").mkdir()
+    shutil.rmtree(settings.library / ".outlawz" / "docs")  # processed data gone
+    (settings.library / ".outlawz" / "docs").mkdir()
     with make_client(settings, background=True) as c:
         state = app_state(c)
         assert state.index.passage_count == 0

@@ -9,8 +9,8 @@ from pathlib import Path
 
 import pytest
 
-from sidelamp.library.documents import DocumentIndex, Status
-from sidelamp.library.watcher import LibraryWatcher, ScanReport
+from outlawz.library.documents import DocumentIndex, Status
+from outlawz.library.watcher import LibraryWatcher, ScanReport
 from tests.builders import simple_pdf
 from tests.conftest import csv_bytes, epub_bytes
 
@@ -149,7 +149,7 @@ def test_temp_hidden_and_unsupported_files_are_ignored(h: Harness, name: str) ->
 
 
 def test_app_folder_hidden_and_system_folders_are_skipped(h: Harness) -> None:
-    for folder in (".sidelamp/docs", ".git", "__MACOSX", "node_modules", "$RECYCLE.BIN"):
+    for folder in (".outlawz/docs", ".git", "__MACOSX", "node_modules", "$RECYCLE.BIN"):
         (h.root / folder).mkdir(parents=True)
         (h.root / folder / "x.csv").write_text("a,b\n1,2\n")
     h.scan()
@@ -210,7 +210,7 @@ def test_symlink_leaving_the_library_is_ignored(tmp_path: Path, h: Harness) -> N
 
 def test_restart_mid_ingestion_requeues(tmp_path: Path) -> None:
     docs = DocumentIndex(tmp_path / "documents.json")
-    from sidelamp.library.documents import Document
+    from outlawz.library.documents import Document
 
     docs.add(
         Document(

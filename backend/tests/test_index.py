@@ -8,9 +8,9 @@ import time
 import numpy as np
 import pytest
 
-from sidelamp.search.bm25 import idf
-from sidelamp.search.fusion import rrf
-from sidelamp.search.index import SearchIndex
+from outlawz.search.bm25 import idf
+from outlawz.search.fusion import rrf
+from outlawz.search.index import SearchIndex
 
 
 def passage(i: int, tf: dict[str, int], text: str = "") -> dict[str, object]:

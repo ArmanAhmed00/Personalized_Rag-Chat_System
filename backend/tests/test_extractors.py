@@ -7,9 +7,9 @@ from pathlib import Path
 import pymupdf
 import pytest
 
-from sidelamp.errors import DocumentError
-from sidelamp.ingest.extractors import ExtractOptions, all_extractors, extractor_for, get_extractor
-from sidelamp.ingest.extractors.base import Cancelled, Extracted
+from outlawz.errors import DocumentError
+from outlawz.ingest.extractors import ExtractOptions, all_extractors, extractor_for, get_extractor
+from outlawz.ingest.extractors.base import Cancelled, Extracted
 from tests.builders import structured_pdf
 from tests.conftest import epub_bytes
 

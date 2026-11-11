@@ -11,19 +11,19 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from sidelamp.app import create_app
-from sidelamp.config import Settings, load_settings
-from sidelamp.state import AppState
+from outlawz.app import create_app
+from outlawz.config import Settings, load_settings
+from outlawz.state import AppState
 
 LOCAL = ("127.0.0.1", 50000)
 BASE_URL = "http://127.0.0.1:8642"
-CSRF = {"X-Sidelamp": "1"}
+CSRF = {"X-Outlawz": "1"}
 
 
 @pytest.fixture(autouse=True)
 def _clean_env(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     for key in list(os.environ):
-        if key.startswith("SIDELAMP_"):
+        if key.startswith("OUTLAWZ_"):
             monkeypatch.delenv(key)
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
 
@@ -74,7 +74,7 @@ def live_client(settings: Settings) -> Iterator[TestClient]:
 
 
 def app_state(c: TestClient) -> AppState:
-    state: AppState = c.app.state.sidelamp  # type: ignore[attr-defined]
+    state: AppState = c.app.state.outlawz  # type: ignore[attr-defined]
     return state
 
 
