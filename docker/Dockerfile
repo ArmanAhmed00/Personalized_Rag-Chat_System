@@ -5,7 +5,7 @@
 # or use docker/compose.yaml, which also publishes the port on 127.0.0.1 only.
 
 # ---------------------------------------------------------------- 1. the web app (static export)
-FROM node:22-alpine AS web
+FROM node:26-alpine AS web
 WORKDIR /src/frontend
 COPY frontend/package.json frontend/package-lock.json ./
 RUN npm ci --no-audit --no-fund
